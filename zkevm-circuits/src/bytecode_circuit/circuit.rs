@@ -756,9 +756,9 @@ impl<F: Field> BytecodeCircuitConfig<F> {
     /// load fixed tables
     pub(crate) fn load_aux_tables(&self, layouter: &mut impl Layouter<F>) -> Result<(), Error> {
         // push table: BYTE -> NUM_PUSHED:
-        // [0, OpcodeId::PUSH1] -> 0
-        // [OpcodeId::PUSH1, OpcodeId::PUSH32] -> [1..32]
-        // [OpcodeId::PUSH32, 256] -> 0
+        // byte < OpcodeId::PUSH1 -> 0
+        // byte >= OpcodeId::PUSH1 and byte <= OpcodeId::PUSH32 -> [1..32]
+        // byte > OpcodeId::PUSH32 and byte < 256 -> 0
         layouter.assign_region(
             || "push table",
             |mut region| {
@@ -921,7 +921,7 @@ mod tests {
             dev::test_bytecode_circuit_unrolled,
         },
         table::BytecodeFieldTag,
-        util::is_push,
+        util::is_push_with_data,
     };
     use bus_mapping::{evm::OpcodeId, state_db::CodeDB};
     use eth_types::{Bytecode, ToWord, Word};
@@ -935,7 +935,7 @@ mod tests {
         let mut bytecode = Bytecode::default();
         // First add all non-push bytes, which should all be seen as code
         for byte in 0u8..=255u8 {
-            if !is_push(byte) {
+            if !is_push_with_data(byte) {
                 bytecode.write(byte, true);
                 rows.push(BytecodeRow {
                     code_hash: Word::zero(),
@@ -958,7 +958,7 @@ mod tests {
                 tag: Fr::from(BytecodeFieldTag::Byte as u64),
                 index: Fr::from(rows.len() as u64),
                 is_code: Fr::from(true as u64),
-                value: Fr::from(OpcodeId::PUSH1.as_u64() + ((n - 1) as u64)),
+                value: Fr::from(OpcodeId::PUSH0.as_u64() + n as u64),
             });
             for _ in 0..n {
                 rows.push(BytecodeRow {
