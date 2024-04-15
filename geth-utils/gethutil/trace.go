@@ -62,10 +62,10 @@ func FormatLogs(logs []*vm.StructLog) []StructLogRes {
 			}
 			formatted[index].Stack = &stack
 		}
-		if trace.Memory.Len() != 0 {
-			memory := make([]string, 0, (trace.Memory.Len()+31)/32)
-			for i := 0; i+32 <= trace.Memory.Len(); i += 32 {
-				memory = append(memory, fmt.Sprintf("%x", trace.Memory.Bytes()[i:i+32]))
+		if trace.Memory != nil {
+			memory := make([]string, 0, (len(trace.Memory)+31)/32)
+			for i := 0; i+32 <= len(trace.Memory); i += 32 {
+				memory = append(memory, fmt.Sprintf("%x", trace.Memory[i:i+32]))
 			}
 			formatted[index].Memory = &memory
 		}
@@ -133,7 +133,6 @@ func Trace(config TraceConfig) ([]*ExecutionResult, error) {
 		DAOForkBlock:        big.NewInt(0),
 		DAOForkSupport:      true,
 		EIP150Block:         big.NewInt(0),
-		EIP150Hash:          common.Hash{},
 		EIP155Block:         big.NewInt(0),
 		EIP158Block:         big.NewInt(0),
 		ByzantiumBlock:      big.NewInt(0),
@@ -143,11 +142,12 @@ func Trace(config TraceConfig) ([]*ExecutionResult, error) {
 		MuirGlacierBlock:    big.NewInt(0),
 		BerlinBlock:         big.NewInt(0),
 		LondonBlock:         big.NewInt(0),
+		ShanghaiTime:        new(uint64),
 	}
 
 	var txsGasLimit uint64
 	blockGasLimit := toBigInt(config.Block.GasLimit).Uint64()
-	messages := make([]types.Message, len(config.Transactions))
+	messages := make([]*core.Message, len(config.Transactions))
 	for i, tx := range config.Transactions {
 		// If gas price is specified directly, the tx is treated as legacy type.
 		if tx.GasPrice != nil {
@@ -161,7 +161,7 @@ func Trace(config TraceConfig) ([]*ExecutionResult, error) {
 			txAccessList[i].StorageKeys = accessList.StorageKeys
 		}
 		if tx.Type == types.DepositTxType {
-			message, err := types.NewTx(&types.DepositTx{
+			tx := types.NewTx(&types.DepositTx{
 				SourceHash: common.Hash{},
 				From:       tx.From,
 				To:         tx.To,
@@ -169,25 +169,26 @@ func Trace(config TraceConfig) ([]*ExecutionResult, error) {
 				Value:      toBigInt(tx.Value),
 				Gas:        uint64(tx.GasLimit),
 				Data:       tx.CallData,
-			}).AsMessage(types.MakeSigner(&chainConfig, config.Block.Number.ToInt()), config.Block.BaseFee.ToInt())
+			})
+			message, err := core.TransactionToMessage(tx, types.MakeSigner(&chainConfig, toBigInt(config.Block.Number), toUint64(config.Block.Timestamp)), config.Block.BaseFee.ToInt())
 			if err != nil {
 				return nil, err
 			}
 			messages[i] = message
 		} else {
-			messages[i] = types.NewMessage(
-				tx.From,
-				tx.To,
-				uint64(tx.Nonce),
-				toBigInt(tx.Value),
-				uint64(tx.GasLimit),
-				toBigInt(tx.GasPrice),
-				toBigInt(tx.GasFeeCap),
-				toBigInt(tx.GasTipCap),
-				tx.CallData,
-				txAccessList,
-				false,
-			)
+			messages[i] = &core.Message{
+				From:        tx.From,
+				To:          tx.To,
+				Nonce:       uint64(tx.Nonce),
+				Value:       toBigInt(tx.Value),
+				GasLimit:    uint64(tx.GasLimit),
+				GasPrice:    toBigInt(tx.GasPrice),
+				GasFeeCap:   toBigInt(tx.GasFeeCap),
+				GasTipCap:   toBigInt(tx.GasTipCap),
+				Data:        tx.CallData,
+				AccessList:  txAccessList,
+				IsDepositTx: false,
+			}
 		}
 
 		txsGasLimit += uint64(tx.GasLimit)
@@ -195,6 +196,9 @@ func Trace(config TraceConfig) ([]*ExecutionResult, error) {
 	if txsGasLimit > blockGasLimit {
 		return nil, fmt.Errorf("txs total gas: %d Exceeds block gas limit: %d", txsGasLimit, blockGasLimit)
 	}
+
+	// For opcode PREVRANDAO
+	randao := common.BigToHash(toBigInt(config.Block.Difficulty)) // TODO: fix
 
 	blockCtx := vm.BlockContext{
 		CanTransfer: core.CanTransfer,
@@ -211,6 +215,7 @@ func Trace(config TraceConfig) ([]*ExecutionResult, error) {
 		BlockNumber: toBigInt(config.Block.Number),
 		Time:        toUint64(config.Block.Timestamp),
 		Difficulty:  toBigInt(config.Block.Difficulty),
+		Random:      &randao,
 		BaseFee:     toBigInt(config.Block.BaseFee),
 		GasLimit:    blockGasLimit,
 	}
@@ -233,9 +238,9 @@ func Trace(config TraceConfig) ([]*ExecutionResult, error) {
 	executionResults := make([]*ExecutionResult, len(config.Transactions))
 	for i, message := range messages {
 		tracer := vm.NewStructLogger(config.LoggerConfig)
-		evm := vm.NewEVM(blockCtx, core.NewEVMTxContext(message), stateDB, &chainConfig, vm.Config{Debug: true, Tracer: tracer, NoBaseFee: true})
+		evm := vm.NewEVM(blockCtx, core.NewEVMTxContext(message), stateDB, &chainConfig, vm.Config{Tracer: tracer, NoBaseFee: true})
 
-		result, err := core.ApplyMessage(evm, message, new(core.GasPool).AddGas(message.Gas()))
+		result, err := core.ApplyMessage(evm, message, new(core.GasPool).AddGas(message.GasLimit))
 		if err != nil {
 			return nil, fmt.Errorf("Failed to apply config.Transactions[%d]: %w", i, err)
 		}
