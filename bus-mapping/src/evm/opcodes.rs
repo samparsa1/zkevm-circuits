@@ -499,7 +499,17 @@ pub fn gen_begin_tx_ops(
     )?;
 
     // Add caller and callee into access list
-    for address in [call.caller_address, call.address] {
+    for address in [
+        call.caller_address,
+        call.address,
+        // for EIP-3651(Warm COINBASE)
+        state
+            .block
+            .headers
+            .get(&state.tx.block_num)
+            .unwrap()
+            .coinbase,
+    ] {
         let is_warm_prev = !state.sdb.add_account_to_access_list(address);
         state.tx_accesslist_account_write(
             &mut exec_step,
