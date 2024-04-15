@@ -56,5 +56,4 @@ require (
 	gopkg.in/natefinch/npipe.v2 v2.0.0-20160621034901-c1b8fa8bdcce // indirect
 )
 
-// Uncomment for debugging
 replace github.com/ethereum/go-ethereum => github.com/kroma-network/go-ethereum v0.0.0-20230424054829-c2269a514d57
