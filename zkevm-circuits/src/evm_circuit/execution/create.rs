@@ -13,7 +13,7 @@ use crate::{
                 Transition::{Delta, To},
             },
             from_bytes,
-            math_gadget::{ConstantDivisionGadget, IsZeroGadget},
+            math_gadget::{ConstantDivisionGadget, IsZeroGadget, LtGadget},
             memory_gadget::{MemoryAddressGadget, MemoryExpansionGadget},
             not, rlc, select, sum, CachedRegion, Cell, RandomLinearCombination, Word,
         },
@@ -31,6 +31,14 @@ use halo2_proofs::{
 };
 
 use std::iter::once;
+
+mod constants {
+    use eth_types::evm_types::GasCost;
+    pub use eth_types::evm_types::{
+        INIT_CODE_WORD_GAS as CREATE_GAS_PER_CODE_WORD, MAX_INIT_CODE_SIZE,
+    };
+    pub const CREATE2_GAS_PER_CODE_WORD: u64 = CREATE_GAS_PER_CODE_WORD + GasCost::COPY_SHA3.0;
+}
 
 /// Gadget for CREATE and CREATE2 opcodes
 #[derive(Clone, Debug)]
@@ -56,6 +64,9 @@ pub(crate) struct CreateGadget<F> {
 
     initialization_code: MemoryAddressGadget<F>,
     initialization_code_word_size: ConstantDivisionGadget<F, N_BYTES_MEMORY_ADDRESS>,
+    // Init code size must be less than 49152 if Shanghai, otherwise should be
+    // less than 2^40 (maximum value for N_BYTES_MEMORY_ADDRESS bytes).
+    initialization_code_word_size_not_overflow: LtGadget<F, N_BYTES_MEMORY_ADDRESS>,
     memory_expansion: MemoryExpansionGadget<F, 1, N_BYTES_MEMORY_WORD_SIZE>,
 
     gas_left: ConstantDivisionGadget<F, N_BYTES_GAS>,
@@ -97,6 +108,20 @@ impl<F: Field> ExecutionGadget<F> for CreateGadget<F> {
         let initialization_code = MemoryAddressGadget::construct_2(cb);
         cb.stack_pop(initialization_code.offset_rlc());
         cb.stack_pop(initialization_code.length_rlc());
+
+        let initialization_code_word_size_not_overflow = LtGadget::construct(
+            cb,
+            initialization_code.length(),
+            constants::MAX_INIT_CODE_SIZE.expr() + 1.expr(),
+        );
+
+        // Init code size overflow is checked before ErrDepth, ErrInsufficientBalance,
+        // ErrNonceUintOverflow and ErrContractAddressCollision.
+        cb.require_equal(
+            "Init code size must be not overflow",
+            initialization_code_word_size_not_overflow.expr(),
+            1.expr(),
+        );
 
         let salt = cb.condition(is_create2.expr(), |cb| {
             let salt = cb.query_word_rlc();
@@ -207,9 +232,11 @@ impl<F: Field> ExecutionGadget<F> for CreateGadget<F> {
 
         let initialization_code_word_size =
             ConstantDivisionGadget::construct(cb, initialization_code.length() + 31.expr(), 32);
-        let keccak_gas_cost = GasCost::COPY_SHA3.expr()
-            * is_create2.expr()
-            * initialization_code_word_size.quotient();
+        let keccak_gas_cost = select::expr(
+            is_create2.expr(),
+            constants::CREATE2_GAS_PER_CODE_WORD.expr(),
+            constants::CREATE_GAS_PER_CODE_WORD.expr(),
+        ) * initialization_code_word_size.quotient();
 
         let gas_cost = GasCost::CREATE.expr() + memory_expansion.gas_cost() + keccak_gas_cost;
         let gas_remaining = cb.curr.state.gas_left.expr() - gas_cost.clone();
@@ -375,6 +402,7 @@ impl<F: Field> ExecutionGadget<F> for CreateGadget<F> {
             keccak_input,
             keccak_input_length,
             initialization_code_word_size,
+            initialization_code_word_size_not_overflow,
         }
     }
 
@@ -428,6 +456,12 @@ impl<F: Field> ExecutionGadget<F> for CreateGadget<F> {
             offset,
             initialization_code_start,
             initialization_code_length,
+        )?;
+        self.initialization_code_word_size_not_overflow.assign(
+            region,
+            offset,
+            F::from(initialization_code_length.as_u64()),
+            F::from(constants::MAX_INIT_CODE_SIZE + 1),
         )?;
 
         self.tx_id
@@ -525,14 +559,14 @@ impl<F: Field> ExecutionGadget<F> for CreateGadget<F> {
                 (31u64 + initialization_code_length.as_u64()).into(),
             )?;
 
-        let gas_left = step.gas_left
-            - GasCost::CREATE.as_u64()
-            - memory_expansion_gas_cost
-            - if is_create2 {
-                u64::try_from(initialization_code_word_size).unwrap() * GasCost::COPY_SHA3.as_u64()
+        let keccak_gas_cost = u64::try_from(initialization_code_word_size).unwrap()
+            * if is_create2 {
+                constants::CREATE2_GAS_PER_CODE_WORD
             } else {
-                0
+                constants::CREATE_GAS_PER_CODE_WORD
             };
+        let gas_left =
+            step.gas_left - GasCost::CREATE.as_u64() - memory_expansion_gas_cost - keccak_gas_cost;
         self.gas_left.assign(region, offset, gas_left.into())?;
 
         self.callee_is_success.assign(
