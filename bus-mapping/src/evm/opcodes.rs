@@ -21,7 +21,7 @@ use eth_types::{
     evm_types::{GasCost, MAX_REFUND_QUOTIENT_OF_GAS_USED},
     evm_unimplemented,
     kroma_params::{
-        BASE_FEE_KEY, L1_BLOCK, L1_FEE_OVERHEAD_KEY, L1_FEE_SCALAR_KEY, VALIDATOR_REWARD_SCALAR_KEY,
+        BASE_FEE_KEY, BASE_FEE_SCALAR_KEY, BLOB_BASE_FEE_KEY, L1_BLOCK, VALIDATOR_REWARD_SCALAR_KEY,
     },
     GethExecStep, GethExecTrace, ToAddress, ToWord, Word,
 };
@@ -1028,11 +1028,11 @@ pub fn gen_proposer_reward_hook_ops(state: &mut CircuitInputStateRef) -> Result<
         RW::READ,
         StorageOp::new(
             *L1_BLOCK,
-            *L1_FEE_OVERHEAD_KEY,
-            state.block.l1_fee.fee_overhead,
-            state.block.l1_fee.fee_overhead,
+            *BASE_FEE_SCALAR_KEY,
+            state.block.l1_fee.base_fee_scalar,
+            state.block.l1_fee.base_fee_scalar,
             state.tx_ctx.id(),
-            state.block.l1_fee_committed.fee_overhead,
+            state.block.l1_fee_committed.base_fee_scalar,
         ),
     );
     state.push_op(
@@ -1040,18 +1040,18 @@ pub fn gen_proposer_reward_hook_ops(state: &mut CircuitInputStateRef) -> Result<
         RW::READ,
         StorageOp::new(
             *L1_BLOCK,
-            *L1_FEE_SCALAR_KEY,
-            state.block.l1_fee.fee_scalar,
-            state.block.l1_fee.fee_scalar,
+            *BLOB_BASE_FEE_KEY,
+            state.block.l1_fee.blob_base_fee,
+            state.block.l1_fee.blob_base_fee,
             state.tx_ctx.id(),
-            state.block.l1_fee_committed.fee_scalar,
+            state.block.l1_fee_committed.blob_base_fee,
         ),
     );
 
     let l1_fee = state.sdb.compute_l1_fee(
         state.block.l1_fee.base_fee,
-        state.block.l1_fee.fee_overhead,
-        state.block.l1_fee.fee_scalar,
+        state.block.l1_fee.base_fee_scalar,
+        state.block.l1_fee.blob_base_fee,
         state.tx.rollup_data_gas_cost,
     )?;
     let (found, proposer_reward_vault) = state.sdb.get_account_mut(&PROPOSER_REWARD_VAULT);

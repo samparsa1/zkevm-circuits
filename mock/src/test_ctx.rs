@@ -428,32 +428,35 @@ pub mod helpers {
         let mut calldata = Vec::with_capacity(4 + 32 * 9);
 
         // setL1BlockValues
-        calldata.extend(vec![0xef, 0xc6, 0x74, 0xeb]);
-        // l1 blocknumber: 2295
-        calldata.extend(padding!(vec![0x08, 0xf7]));
-        // l1 timestamp: 1685085294
-        calldata.extend(padding!(vec![0x64, 0x70, 0x5c, 0x6e]));
-        // l1 basefee: 7
-        calldata.extend(padding!(vec![0x07]));
+        // 0x440a5e20000f4240000000000000000000000001000000006621104800000000000000090000000000000000000000000000000000000000000000000000000011efd86e00000000000000000000000000000000000000000000000000000000000000017516b3df53993456b2fa69cb850db6990058bc1aafaecd4b0cf75b052046cb890000000000000000000000003c44cdddb6a900fa2b585dd299e03d12fa4293bc0000000000000000000000000000000000000000000000000000000000001388
+        calldata.extend(vec![0x44, 0x0a, 0x5e, 0x20]);
+        // l1 basefee scalar: 1000000
+        calldata.extend(vec![0x00, 0x0f, 0x42, 0x40]);
+        // l1 blob basefee scalar: 0
+        calldata.extend(vec![0x00, 0x00, 0x00, 0x00]);
+        // sequence number: 1
+        calldata.extend(vec![0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01]);
+        // l1 timestamp: 1713442888
+        calldata.extend(vec![0x00, 0x00, 0x00, 0x00, 0x66, 0x21, 0x10, 0x48]);
+        // l1 block number: 9
+        calldata.extend(vec![0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x09]);
+        // l1 basefee: 300931182
+        calldata.extend(padding!(vec![0x11, 0xef, 0xd8, 0x6e]));
+        // l1 blobbasefee: 1
+        calldata.extend(padding!(vec![0x1]));
         // l1 hash
         calldata.extend(vec![
-            0x36, 0xe0, 0x8a, 0x25, 0xfc, 0x21, 0x49, 0x1f, 0xc3, 0x48, 0xe2, 0xd6, 0x3e, 0x42,
-            0xce, 0xda, 0xa3, 0xc6, 0x33, 0x17, 0x80, 0xf2, 0x2b, 0xaa, 0x5e, 0xb4, 0x23, 0x98,
-            0x1e, 0xfc, 0x12, 0xa0,
+            0x75, 0x16, 0xb3, 0xdf, 0x53, 0x99, 0x34, 0x56, 0xb2, 0xfa, 0x69, 0xcb, 0x85, 0x0d,
+            0xb6, 0x99, 0x00, 0x58, 0xbc, 0x1a, 0xaf, 0xae, 0xcd, 0x4b, 0x0c, 0xf7, 0x5b, 0x05,
+            0x20, 0x46, 0xcb, 0x89,
         ]);
-        // sequenceNumber: 0
-        calldata.extend(vec![0; 32]);
         // batcherHash
         calldata.extend(padding!(vec![
             0x3c, 0x44, 0xcd, 0xdd, 0xb6, 0xa9, 0x00, 0xfa, 0x2b, 0x58, 0x5d, 0xd2, 0x99, 0xe0,
             0x3d, 0x12, 0xfa, 0x42, 0x93, 0xbc
         ]));
-        // l1 fee overhead: 2100
-        calldata.extend(padding!(vec![0x08, 0x34]));
-        // l1 fee scalar: 1000000
-        calldata.extend(padding!(vec![0x0f, 0x42, 0x40]));
-        // validator reward scalar: 2000
-        calldata.extend(padding!(vec![0x07, 0xd0]));
+        // validator reward scalar: 5000
+        calldata.extend(padding!(vec![0x13, 0x88]));
 
         tx.transaction_type(DEPOSIT_TX_TYPE)
             .from(*SYSTEM_TX_CALLER)
@@ -462,7 +465,7 @@ pub mod helpers {
             .gas_price(Word::zero())
             .source_hash(
                 H256::from_str(
-                    "0x7f9da519dd53cd0705760f80addc46233ba6c3124f4566798ad1ae1fb7189307",
+                    "0xbe80309c03aced5ffbbe3043c2f23c3d3abcad36a10187d5c913c3623633a07f",
                 )
                 .unwrap(),
             )

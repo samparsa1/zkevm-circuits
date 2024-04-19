@@ -8,7 +8,7 @@ use crate::precompile::is_precompiled;
 use crate::Error;
 #[cfg(feature = "kroma")]
 use eth_types::kroma_params::{
-    BASE_FEE_KEY, L1_BLOCK, L1_COST_DENOMINATOR, L1_FEE_OVERHEAD_KEY, L1_FEE_SCALAR_KEY,
+    BASE_FEE_KEY, BASE_FEE_SCALAR_KEY, BLOB_BASE_FEE_KEY, ECOTONE_COST_DENOMINATOR, L1_BLOCK,
     VALIDATOR_REWARD_SCALAR_KEY,
 };
 use eth_types::{geth_types, Address, Hash, Word, H256, U256};
@@ -285,13 +285,9 @@ impl StateDB {
         if !found {
             return Err(Error::StorageKeyNotFound(*L1_BLOCK, *BASE_FEE_KEY));
         }
-        let (found, l1_fee_overhead) = self.get_storage(&L1_BLOCK, &L1_FEE_OVERHEAD_KEY);
+        let (found, l1_base_fee_scalar) = self.get_storage(&L1_BLOCK, &BASE_FEE_SCALAR_KEY);
         if !found {
-            return Err(Error::StorageKeyNotFound(*L1_BLOCK, *L1_FEE_OVERHEAD_KEY));
-        }
-        let (found, l1_fee_scalar) = self.get_storage(&L1_BLOCK, &L1_FEE_SCALAR_KEY);
-        if !found {
-            return Err(Error::StorageKeyNotFound(*L1_BLOCK, *L1_FEE_SCALAR_KEY));
+            return Err(Error::StorageKeyNotFound(*L1_BLOCK, *BASE_FEE_SCALAR_KEY));
         }
         let (found, validator_reward_scalar) =
             self.get_storage(&L1_BLOCK, &VALIDATOR_REWARD_SCALAR_KEY);
@@ -301,26 +297,30 @@ impl StateDB {
                 *VALIDATOR_REWARD_SCALAR_KEY,
             ));
         }
+        let (found, l1_blob_base_fee) = self.get_storage(&L1_BLOCK, &BLOB_BASE_FEE_KEY);
+        if !found {
+            return Err(Error::StorageKeyNotFound(*L1_BLOCK, *BLOB_BASE_FEE_KEY));
+        }
 
         let (_, l1_base_fee_committed) = self.get_committed_storage(&L1_BLOCK, &BASE_FEE_KEY);
-        let (_, l1_fee_overhead_committed) =
-            self.get_committed_storage(&L1_BLOCK, &L1_FEE_OVERHEAD_KEY);
-        let (_, l1_fee_scalar_committed) =
-            self.get_committed_storage(&L1_BLOCK, &L1_FEE_SCALAR_KEY);
+        let (_, l1_base_fee_scalar_committed) =
+            self.get_committed_storage(&L1_BLOCK, &BASE_FEE_SCALAR_KEY);
         let (_, validator_reward_scalar_committed) =
             self.get_committed_storage(&L1_BLOCK, &VALIDATOR_REWARD_SCALAR_KEY);
+        let (_, l1_blob_base_fee_committed) =
+            self.get_committed_storage(&L1_BLOCK, &BLOB_BASE_FEE_KEY);
 
         let values = TxL1Fee {
             base_fee: *l1_base_fee,
-            fee_overhead: *l1_fee_overhead,
-            fee_scalar: *l1_fee_scalar,
+            base_fee_scalar: *l1_base_fee_scalar,
             validator_reward_scalar: *validator_reward_scalar,
+            blob_base_fee: *l1_blob_base_fee,
         };
         let committed_values = TxL1Fee {
             base_fee: *l1_base_fee_committed,
-            fee_overhead: *l1_fee_overhead_committed,
-            fee_scalar: *l1_fee_scalar_committed,
+            base_fee_scalar: *l1_base_fee_scalar_committed,
             validator_reward_scalar: *validator_reward_scalar_committed,
+            blob_base_fee: *l1_blob_base_fee_committed,
         };
         Ok((values, committed_values))
     }
@@ -331,16 +331,36 @@ impl StateDB {
     pub fn compute_l1_fee(
         &self,
         l1_base_fee: Word,
-        l1_fee_overhead: Word,
-        l1_fee_scalar: Word,
+        l1_base_fee_scalar: Word,
+        l1_blob_base_fee: Word,
         rollup_data_gas_cost: u64,
     ) -> Result<Word, Error> {
+        use eth_types::ToBigEndian;
+
         debug_assert!(!l1_base_fee.is_zero());
-        debug_assert!(!l1_fee_overhead.is_zero());
-        debug_assert!(!l1_fee_scalar.is_zero());
+        debug_assert!(!l1_base_fee_scalar.is_zero());
+        debug_assert!(!l1_blob_base_fee.is_zero());
+
+        let l1_base_fee_scalar_bytes = l1_base_fee_scalar.to_be_bytes();
+        const L1_BASE_FEE_SCALAR_OFFSET: usize = 16;
+        let l1_base_fee_scalar = u32::from_be_bytes(
+            l1_base_fee_scalar_bytes[L1_BASE_FEE_SCALAR_OFFSET..(L1_BASE_FEE_SCALAR_OFFSET + 4)]
+                .try_into()
+                .expect("slice with incorrect length"),
+        );
+        const L1_BLOB_BASE_FEE_SCALAR_OFFSET: usize = 12;
+        let l1_blob_base_fee_scalar = u32::from_be_bytes(
+            l1_base_fee_scalar_bytes
+                [L1_BLOB_BASE_FEE_SCALAR_OFFSET..(L1_BLOB_BASE_FEE_SCALAR_OFFSET + 4)]
+                .try_into()
+                .expect("slice with incorrect length"),
+        );
+
         Ok(
-            (Word::from(rollup_data_gas_cost) + l1_fee_overhead) * l1_base_fee * l1_fee_scalar
-                / *L1_COST_DENOMINATOR,
+            (l1_base_fee * Word::from(16) * Word::from(l1_base_fee_scalar)
+                + l1_blob_base_fee * l1_blob_base_fee_scalar)
+                * Word::from(rollup_data_gas_cost)
+                / *ECOTONE_COST_DENOMINATOR,
         )
     }
 

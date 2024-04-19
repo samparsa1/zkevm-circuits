@@ -18,7 +18,7 @@ use crate::{
 use bus_mapping::circuit_input_builder::keccak_inputs_sign_verify;
 #[cfg(not(feature = "enable-sign-verify"))]
 use eth_types::sign_types::{pk_bytes_le, pk_bytes_swap_endianness};
-use eth_types::{sign_types::SignData, Address, Field, ToAddress, ToLittleEndian, ToScalar, Word};
+use eth_types::{sign_types::SignData, Address, Field, ToAddress, ToLittleEndian, ToScalar};
 #[cfg(not(feature = "enable-sign-verify"))]
 use ethers_core::utils::keccak256;
 use gadgets::{
@@ -1723,15 +1723,10 @@ impl<F: Field> TxCircuit<F> {
                             }),
                         ),
                         #[cfg(feature = "kroma")]
-                        // NOTE(chokobole): The reason why rlc encoding rollup_data_gas_cost is
-                        // because it is used to add with another rlc value in RollupFeeHook
-                        // gadget.
                         (
                             TxFieldTag::RollupDataGasCost,
                             RlpTxTag::RollupDataGasCost,
-                            challenges.evm_word().map(|challenge| {
-                                rlc(Word::from(tx.rollup_data_gas_cost).to_le_bytes(), challenge)
-                            }),
+                            Value::known(F::from(tx.rollup_data_gas_cost)),
                         ),
                     ] {
                         let tx_id_next = match tag {
