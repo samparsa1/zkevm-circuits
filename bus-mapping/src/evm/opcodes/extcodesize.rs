@@ -111,7 +111,7 @@ mod extcodesize_tests {
         };
 
         // Test for empty account.
-        test_ok(&Account::default(), false);
+        test_ok(&Account::default(), true);
         // Test for cold account.
         test_ok(&account, false);
         // Test for warm account.

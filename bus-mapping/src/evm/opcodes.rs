@@ -158,11 +158,14 @@ type FnGenAssociatedOps = fn(
 ) -> Result<Vec<ExecStep>, Error>;
 
 fn fn_gen_associated_ops(opcode_id: &OpcodeId) -> FnGenAssociatedOps {
-    if opcode_id.is_push() {
+    if opcode_id.is_push_with_data() {
         return StackOnlyOpcode::<0, 1>::gen_associated_ops;
     }
 
     match opcode_id {
+        // TODO(chokobole): This is a temporary solution to prevent the state circuit from
+        // generating an error "non-first access reads don't change value".
+        OpcodeId::PUSH0 => StackOnlyOpcode::<0, 1>::gen_associated_ops,
         OpcodeId::STOP => Stop::gen_associated_ops,
         OpcodeId::ADD => StackOnlyOpcode::<2, 1>::gen_associated_ops,
         OpcodeId::MUL => StackOnlyOpcode::<2, 1>::gen_associated_ops,
@@ -496,7 +499,17 @@ pub fn gen_begin_tx_ops(
     )?;
 
     // Add caller and callee into access list
-    for address in [call.caller_address, call.address] {
+    for address in [
+        call.caller_address,
+        call.address,
+        // for EIP-3651(Warm COINBASE)
+        state
+            .block
+            .headers
+            .get(&state.tx.block_num)
+            .unwrap()
+            .coinbase,
+    ] {
         let is_warm_prev = !state.sdb.add_account_to_access_list(address);
         state.tx_accesslist_account_write(
             &mut exec_step,
