@@ -343,15 +343,11 @@ impl Transaction {
                 rlc_be_bytes(&source_hash_be_bytes, challenges.evm_word()),
             ],
             #[cfg(feature = "kroma")]
-            // NOTE(chokobole): The reason why rlc encoding rollup_data_gas_cost is
-            // because it is used to add with another rlc value in RollupFeeHook gadget.
             [
                 Value::known(F::from(self.id as u64)),
                 Value::known(F::from(TxContextFieldTag::RollupDataGasCost as u64)),
                 Value::known(F::zero()),
-                challenges.evm_word().map(|challenge| {
-                    rlc::value(&self.rollup_data_gas_cost.to_le_bytes(), challenge)
-                }),
+                Value::known(F::from(self.rollup_data_gas_cost)),
             ],
         ];
 

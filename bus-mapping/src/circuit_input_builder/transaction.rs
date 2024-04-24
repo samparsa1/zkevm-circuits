@@ -444,10 +444,10 @@ impl Transaction {
 pub struct TxL1Fee {
     /// L1 base fee
     pub base_fee: Word,
-    /// L1 fee overhead
-    pub fee_overhead: Word,
-    /// L1 fee scalar
-    pub fee_scalar: Word,
+    /// L1 base fee scalar
+    pub base_fee_scalar: Word,
     /// Validator reward scalar
     pub validator_reward_scalar: Word,
+    /// L1 blob base fee
+    pub blob_base_fee: Word,
 }
