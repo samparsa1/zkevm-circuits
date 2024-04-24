@@ -1,20 +1,20 @@
-/// Version
-pub mod version {
-    /// Major version
-    pub const MAJOR: u32 = 0;
-    /// Minor version
-    pub const MINOR: u32 = 1;
-    /// Patch version
-    pub const PATCH: u32 = 0;
+//! Version variables and its utils
 
-    /// Export versions as string
-    pub fn as_string() -> String {
-        format!("{}.{}.{}", MAJOR, MINOR, PATCH)
-    }
+/// Major version
+pub const MAJOR: u32 = 0;
+/// Minor version
+pub const MINOR: u32 = 1;
+/// Patch version
+pub const PATCH: u32 = 0;
+
+/// Export versions as string
+pub fn as_string() -> String {
+    format!("{}.{}.{}", MAJOR, MINOR, PATCH)
 }
 
+#[cfg(test)]
 mod tests {
-    use crate::version::version;
+    use crate::version;
 
     #[test]
     fn test_version_string() {

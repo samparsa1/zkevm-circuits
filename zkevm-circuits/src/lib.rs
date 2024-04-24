@@ -18,7 +18,6 @@
 #![deny(unsafe_code)]
 #![deny(clippy::debug_assert_with_mut_call)]
 
-pub mod version;
 pub mod bytecode_circuit;
 pub mod copy_circuit;
 pub mod evm_circuit;
@@ -32,6 +31,7 @@ pub mod root_circuit;
 pub mod state_circuit;
 pub mod super_circuit;
 pub mod table;
+pub mod version;
 
 #[cfg(any(feature = "test", test))]
 pub mod test_util;
