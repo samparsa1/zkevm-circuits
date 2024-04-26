@@ -401,6 +401,8 @@ impl<F: Field> RlpCircuitConfig<F> {
                 is_sig_r(meta),
                 is_sig_s(meta),
                 #[cfg(feature = "kroma")]
+                is_mint(meta),
+                #[cfg(feature = "kroma")]
                 is_source_hash(meta),
             ]);
 
