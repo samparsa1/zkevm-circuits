@@ -3,7 +3,7 @@
 /// Major version
 pub const MAJOR: u32 = 0;
 /// Minor version
-pub const MINOR: u32 = 1;
+pub const MINOR: u32 = 2;
 /// Patch version
 pub const PATCH: u32 = 0;
 
@@ -18,10 +18,10 @@ mod tests {
 
     #[test]
     fn test_version_string() {
-        let expected = "0.1.0";
+        let expected = "0.2.0";
 
         assert_eq!(version::MAJOR, 0, "wrong version");
-        assert_eq!(version::MINOR, 1, "wrong version");
+        assert_eq!(version::MINOR, 2, "wrong version");
         assert_eq!(version::PATCH, 0, "wrong version");
         assert_eq!(version::as_string(), expected, "wrong version");
     }

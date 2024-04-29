@@ -401,6 +401,8 @@ impl<F: Field> RlpCircuitConfig<F> {
                 is_sig_r(meta),
                 is_sig_s(meta),
                 #[cfg(feature = "kroma")]
+                is_mint(meta),
+                #[cfg(feature = "kroma")]
                 is_source_hash(meta),
             ]);
 
@@ -1209,7 +1211,7 @@ impl<F: Field> RlpCircuitConfig<F> {
             cb.condition(
                 and::expr(vec![
                     not::expr(meta.query_advice(rlp_table.data_type, Rotation::cur())),
-                    not::expr(is_tag_next_padding),
+                    not::expr(is_tag_next_padding.clone()),
                 ]),
                 |cb| {
                     cb.require_equal(
@@ -1222,6 +1224,7 @@ impl<F: Field> RlpCircuitConfig<F> {
                         meta.query_advice(rlp_table.data_type, Rotation::next()),
                         RlpDataType::TxHash.expr(),
                     );
+                    #[cfg(not(feature = "kroma"))]
                     cb.require_equal(
                         "TxHash rows' first row is Prefix again",
                         meta.query_advice(rlp_table.tag, Rotation::next()),
@@ -1231,6 +1234,22 @@ impl<F: Field> RlpCircuitConfig<F> {
                         "TxSign rows' first row starts with rlp_table.tag_rindex = tag_length",
                         meta.query_advice(rlp_table.tag_rindex, Rotation::next()),
                         meta.query_advice(tag_length, Rotation::next()),
+                    );
+                },
+            );
+
+            #[cfg(feature = "kroma")]
+            cb.condition(
+                and::expr(vec![
+                    not::expr(meta.query_advice(rlp_table.data_type, Rotation::cur())),
+                    not::expr(is_tag_next_padding),
+                    not::expr(meta.query_advice(is_deposit_tx, Rotation::cur())),
+                ]),
+                |cb| {
+                    cb.require_equal(
+                        "TxHash rows' first row is Prefix again",
+                        meta.query_advice(rlp_table.tag, Rotation::next()),
+                        RlpTxTag::Prefix.expr(),
                     );
                 },
             );
